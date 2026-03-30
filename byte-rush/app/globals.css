@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+/*
+  Site colors — edit these hex values to recolor the UI.
+  - --foreground: main text (headings, nav, body default)
+  - --muted: secondary text (captions, icons, placeholders)
+  - --accent: links / highlights (optional, use in components)
+  - --border: hairlines and input borders
+*/
+:root {
+  --background: #ffffff;
+  --foreground: #969696;
+  --muted: #64748b;
+  --accent: #4f46e5;
+  --border: #e2e8f0;
+  /* Space for sticky site header (logo row + nav links). Raise if navbar wraps taller. */
+  --site-header-sticky-offset: 9rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-border: var(--border);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ByteRush wordmark (inline SVG) — matches ByteRush_logo.html light variant */
+.byterush-wordmark {
+  overflow: visible;
+}
+.byterush-wordmark .br-byte,
+.byterush-wordmark .br-rush {
+  font-family: var(--font-orbitron), "Orbitron", monospace;
+  font-weight: 900;
+  font-size: 86px;
+  letter-spacing: -3px;
+}
+.byterush-wordmark .br-byte {
+  fill: #0d0f14 !important;
+}
