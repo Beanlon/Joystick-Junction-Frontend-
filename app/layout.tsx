@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist_Mono, Inter, Orbitron } from "next/font/google";
 import Navbar from "@/components/navbar";
 import "./globals.css";
-import { AuthSessionProvider } from "@/components/sessionprovider";
 
 const orbitron = Orbitron({
   variable: "--font-orbitron",
@@ -36,10 +35,8 @@ export default function RootLayout({
       className={`${orbitron.variable} ${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-background font-sans text-zinc-800">
-      <AuthSessionProvider>
-        <Navbar />
-        <div className="flex flex-1 flex-col">{children}</div>
-      </AuthSessionProvider>
+      <Navbar />
+      <div className="flex flex-1 flex-col">{children}</div>
       </body>
     </html>
   );

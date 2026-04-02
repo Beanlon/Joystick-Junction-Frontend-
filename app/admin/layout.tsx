@@ -1,8 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { verifyAdminSession } from "@/lib/admin-auth";
-
-const COOKIE = "admin_session";
+import { AUTH_COOKIE, verifyAuthCookie } from "@/lib/auth-session";
 
 export default async function AdminLayout({
   children,
@@ -10,8 +8,12 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const jar = await cookies();
-  if (!verifyAdminSession(jar.get(COOKIE)?.value)) {
-    redirect("/login?next=/admin");
+  const payload = await verifyAuthCookie(jar.get(AUTH_COOKIE)?.value);
+  if (!payload) {
+    redirect("/login?reason=session");
+  }
+  if (payload.role !== "ADMIN") {
+    redirect("/");
   }
 
   return (

@@ -2,12 +2,11 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { verifyAdminSession } from "@/lib/admin-auth";
-
-const COOKIE = "admin_session";
+import { AUTH_COOKIE } from "@/lib/auth-session";
 
 export async function adminLogout() {
   const jar = await cookies();
-  jar.delete(COOKIE);
-  redirect("/login?next=/admin");
+  jar.delete(AUTH_COOKIE);
+  jar.delete("admin_session");
+  redirect("/");
 }

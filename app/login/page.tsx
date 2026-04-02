@@ -7,17 +7,18 @@ export const metadata: Metadata = {
 };
 
 type Props = {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; reason?: string }>;
 };
 
 export default async function LoginPage(props: Props) {
-  const { next } = await props.searchParams;
+  const { next, reason } = await props.searchParams;
   const nextPath =
     next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  const sessionInvalid = reason === "session";
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center bg-gradient-to-b from-zinc-50 to-white px-4 py-12 sm:px-6 sm:py-16">
-      <LoginForm nextPath={nextPath} />
+      <LoginForm nextPath={nextPath} sessionInvalid={sessionInvalid} />
     </div>
   );
 }

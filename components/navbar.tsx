@@ -1,5 +1,9 @@
 import { ByteRushWordmark } from "@/components/byte-rush-wordmark";
+import { cookies } from "next/headers";
 import Link from "next/link";
+import { AUTH_COOKIE, verifyAuthCookie } from "@/lib/auth-session";
+import { getBackendUrl } from "@/lib/backend-url";
+import { adminLogout } from "@/app/admin/actions";
 
 const navItems = [
   {label: "Components", href: "/components",},
@@ -11,7 +15,37 @@ const navItems = [
   {label: "Brands", href: "/brands",},
 ];
 
-export default function Navbar() {
+export default async function Navbar() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(AUTH_COOKIE)?.value;
+  const payload = await verifyAuthCookie(token);
+
+  let me: { id?: string; email?: string; displayName?: string | null; role?: string } | null =
+    null;
+
+  if (token) {
+    try {
+      const backend = getBackendUrl();
+      if (backend) {
+        const res = await fetch(`${backend}/auth/me`, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          me = data?.user ?? null;
+        }
+      }
+    } catch {
+      me = null;
+    }
+  }
+
+  const loggedIn = Boolean(me);
+  const displayLabel = me?.displayName?.trim() || me?.email || "Account";
+
+
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-sm">
       <div className="mx-auto flex max-w-[1450px] flex-col gap-3 px-4 pt-7 pb-3 sm:px-6">
@@ -77,12 +111,54 @@ export default function Navbar() {
               </svg>
               <span className="text-sm font-medium text-zinc-900">0</span>
             </div>
-            <Link
-              href="/login"
-              className="rounded-full border border-zinc-900 bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
-            >
-              Log in
-            </Link>
+            {loggedIn ? (
+              <div className="relative group">
+                <button
+                  type="button"
+                  className="cursor-pointer text-sm font-bold text-gray-900 transition-colors hover:text-gray-200 flex flex-col items-start gap-1"
+                  aria-haspopup="menu"
+                >
+                  <span className="leading-tight">{displayLabel}</span>
+                  <span className="text-sm font-normal leading-tight">
+                    {me?.email}
+                  </span>
+                </button>
+                <div
+                  className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg
+                            opacity-0 translate-y-1 pointer-events-none transition
+                            group-focus-within:opacity-100 group-focus-within:translate-y-0 group-focus-within:pointer-events-auto"
+                  role="menu"
+                  aria-label="Account menu"
+                >
+                  {me?.role === "USER" && (
+                    <a href="/account" className="block px-4 py-2 text-sm text-gray-900 hover:bg-zinc-50">
+                      My account
+                    </a>
+                  )}
+                  {me?.role === "ADMIN" && (
+                    <a href="/admin" className="block px-4 py-2 text-sm text-gray-900 hover:bg-zinc-50">
+                      Admin dashboard
+                    </a>
+                  )}
+                  <div className="border-t border-zinc-100" />
+                  <form action={adminLogout}>
+                    <button
+                      type="submit"
+                      className="w-full px-4 py-2 text-left text-gray-900 text-sm hover:bg-zinc-50"
+                    >
+                      Log out
+                    </button>
+                  </form>
+                </div>
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                className="rounded-full border border-zinc-900 bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
+              >
+                Log in
+              </Link>
+            )}
           </div>
         </div>
 
