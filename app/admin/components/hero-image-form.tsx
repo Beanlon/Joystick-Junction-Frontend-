@@ -1,10 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createHeroImage } from "@/app/admin/hero-image-actions";
 
-export function HeroImageForm() {
+const fieldClass =
+  "mt-1.5 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500";
+
+type HeroImageFormProps = {
+  onCreated?: () => void;
+};
+
+export function HeroImageForm({ onCreated }: HeroImageFormProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState("");
+  const [alt, setAlt] = useState("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const syncFileToPreview = useCallback((file: File | undefined) => {
     if (!file || !file.type.startsWith("image/")) {
@@ -43,16 +55,55 @@ export function HeroImageForm() {
         Hero images
       </h2>
       <p className="mt-1 text-sm text-zinc-600">
-        Upload a file or paste an external image URL. Saving to your backend is
-        not wired yet — this form is UI only for now.
+        Add a slide using a public image URL (file upload still needs storage wired
+        to the API). Alt text helps accessibility.
       </p>
 
       <form
         className="mt-6 space-y-5"
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
+          setSubmitError(null);
+          setSubmitting(true);
+          const r = await createHeroImage({ imageUrl, alt });
+          setSubmitting(false);
+          if (r.ok) {
+            setImageUrl("");
+            setAlt("");
+            setPreview(null);
+            if (inputRef.current) inputRef.current.value = "";
+            onCreated?.();
+          } else {
+            setSubmitError(r.error);
+          }
         }}
       >
+        {submitError ? (
+          <p
+            className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
+            role="alert"
+          >
+            {submitError}
+          </p>
+        ) : null}
+
+        <div>
+          <label className="text-sm font-medium text-zinc-800" htmlFor="hero-image-url">
+            Image URL
+          </label>
+          <input
+            id="hero-image-url"
+            name="imageUrl"
+            type="url"
+            required
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            className={fieldClass}
+            placeholder="https://example.com/banner.jpg"
+            autoComplete="off"
+          />
+        </div>
+
         <div>
           <label className="text-sm font-medium text-zinc-800" htmlFor="hero-alt">
             Alt text (accessibility)
@@ -61,14 +112,16 @@ export function HeroImageForm() {
             id="hero-alt"
             name="alt"
             type="text"
-            className="mt-1.5 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500"
+            value={alt}
+            onChange={(e) => setAlt(e.target.value)}
+            className={fieldClass}
             placeholder="Describe the image for screen readers"
             maxLength={200}
           />
         </div>
 
         <div>
-          <p className="text-sm font-medium text-zinc-800">Upload file</p>
+          <p className="text-sm font-medium text-zinc-800">Upload file (preview only)</p>
           <div
             onDragOver={(e) => e.preventDefault()}
             onDrop={onDrop}
@@ -90,7 +143,7 @@ export function HeroImageForm() {
               Choose image
             </label>
             <p className="text-xs text-zinc-500">
-              or drag and drop · JPEG, PNG, WebP, GIF
+              or drag and drop · JPEG, PNG, WebP, GIF · not saved to server yet
             </p>
             {preview ? (
               <img
@@ -102,42 +155,14 @@ export function HeroImageForm() {
           </div>
         </div>
 
-        <div className="relative">
-          <div
-            className="absolute inset-x-0 top-1/2 border-t border-zinc-200"
-            aria-hidden
-          />
-          <span className="relative mx-auto block w-fit bg-white px-2 text-xs text-zinc-500">
-            or
-          </span>
-        </div>
-
-        <div>
-          <label className="text-sm font-medium text-zinc-800" htmlFor="hero-url">
-            Image URL
-          </label>
-          <input
-            id="hero-url"
-            name="url"
-            type="url"
-            className="mt-1.5 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500"
-            placeholder="https://example.com/banner.jpg"
-          />
-        </div>
-
         <button
           type="submit"
+          disabled={submitting}
           className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
         >
-          Add hero image
+          {submitting ? "Saving…" : "Add hero image"}
         </button>
       </form>
-
-      <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-        Backend upload/save is disabled. When your API is ready, POST the file
-        or URL from this form to persist <code className="font-mono">image_url</code>{" "}
-        (and alt, order, active) on the server.
-      </p>
     </div>
   );
 }

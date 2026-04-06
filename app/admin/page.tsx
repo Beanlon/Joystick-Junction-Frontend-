@@ -1,6 +1,6 @@
 import { AdminMetricsGrid } from "@/app/admin/components/admin-metric-card";
 import { AdminQuickActionsCard } from "@/app/admin/components/admin-quick-actions-card";
-import { HeroImageForm } from "@/app/admin/components/hero-image-form";
+import { HeroImagesPanel } from "@/app/admin/components/hero-images-panel";
 import { AddProductForm } from "./components/add-product-form";
 import { ManageProductsForm } from "./components/manage-products-form";
 import { BrandForm } from "./components/brand-form";
@@ -38,7 +38,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           ) : view === "brand-form" ? (
             <BrandForm />
           ) : (
-            <HeroImageForm />
+            <HeroImagesPanel />
           )}
         </div>
       </div>
