@@ -10,41 +10,102 @@ type HeroImageFormProps = {
   onCreated?: () => void;
 };
 
+type UploadRow = {
+  id: string;
+  file: File | null;
+  previewUrl: string | null;
+  alt: string;
+  linkUrl: string;
+};
+
+function createEmptyRow(id: string): UploadRow {
+  return {
+    id,
+    file: null,
+    previewUrl: null,
+    alt: "",
+    linkUrl: "",
+  };
+}
+
 export function HeroImageForm({ onCreated }: HeroImageFormProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [imageUrl, setImageUrl] = useState("");
-  const [alt, setAlt] = useState("");
+  const [rows, setRows] = useState<UploadRow[]>([createEmptyRow("row-0")]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const rowCounterRef = useRef(1);
 
-  const syncFileToPreview = useCallback((file: File | undefined) => {
-    if (!file || !file.type.startsWith("image/")) {
-      setPreview(null);
-      return;
-    }
-    setPreview(URL.createObjectURL(file));
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const setInputRef = useCallback((id: string, node: HTMLInputElement | null) => {
+    inputRefs.current[id] = node;
   }, []);
 
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    syncFileToPreview(e.target.files?.[0]);
-  };
+  const updateRow = useCallback((id: string, patch: Partial<UploadRow>) => {
+    setRows((current) =>
+      current.map((row) => {
+        if (row.id !== id) return row;
+        return { ...row, ...patch };
+      }),
+    );
+  }, []);
 
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (!file || !inputRef.current) return;
-    const dt = new DataTransfer();
-    dt.items.add(file);
-    inputRef.current.files = dt.files;
-    syncFileToPreview(file);
-  };
+  const onFileChange = useCallback(
+    (id: string, file: File | null) => {
+      if (file && !file.type.startsWith("image/")) {
+        setSubmitError("Only image files are allowed.");
+        return;
+      }
+      setSubmitError(null);
+      setRows((current) =>
+        current.map((row) => {
+          if (row.id !== id) return row;
+          if (row.previewUrl) {
+            URL.revokeObjectURL(row.previewUrl);
+          }
+          return {
+            ...row,
+            file,
+            previewUrl: file ? URL.createObjectURL(file) : null,
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const addRow = useCallback(() => {
+    const nextId = `row-${rowCounterRef.current}`;
+    rowCounterRef.current += 1;
+    setRows((current) => [...current, createEmptyRow(nextId)]);
+  }, []);
+
+  const removeRow = useCallback((id: string) => {
+    setRows((current) => {
+      if (current.length === 1) {
+        const only = current[0];
+        if (only.id !== id) return current;
+        if (only.previewUrl) {
+          URL.revokeObjectURL(only.previewUrl);
+        }
+        return [createEmptyRow("row-0")];
+      }
+      const rowToRemove = current.find((row) => row.id === id);
+      if (rowToRemove?.previewUrl) {
+        URL.revokeObjectURL(rowToRemove.previewUrl);
+      }
+      return current.filter((row) => row.id !== id);
+    });
+  }, []);
 
   useEffect(() => {
     return () => {
-      if (preview) URL.revokeObjectURL(preview);
+      rows.forEach((row) => {
+        if (row.previewUrl) {
+          URL.revokeObjectURL(row.previewUrl);
+        }
+      });
     };
-  }, [preview]);
+  }, [rows]);
 
   return (
     <div className="rounded-xl border border-zinc-200 p-4 sm:p-6">
@@ -55,8 +116,7 @@ export function HeroImageForm({ onCreated }: HeroImageFormProps) {
         Hero images
       </h2>
       <p className="mt-1 text-sm text-zinc-600">
-        Add a slide using a public image URL (file upload still needs storage wired
-        to the API). Alt text helps accessibility.
+        Add hero image rows. Each row can include a file upload, click-through URL, and alt text.
       </p>
 
       <form
@@ -65,16 +125,36 @@ export function HeroImageForm({ onCreated }: HeroImageFormProps) {
           e.preventDefault();
           setSubmitError(null);
           setSubmitting(true);
-          const r = await createHeroImage({ imageUrl, alt });
+
+          const readyRows = rows.filter((row) => row.file);
+          if (readyRows.length === 0) {
+            setSubmitError("Please upload at least one image file.");
+            setSubmitting(false);
+            return;
+          }
+
+          const results = await Promise.all(
+            readyRows.map((row) =>
+              createHeroImage({
+                file: row.file as File,
+                alt: row.alt,
+                linkUrl: row.linkUrl,
+              }),
+            ),
+          );
           setSubmitting(false);
-          if (r.ok) {
-            setImageUrl("");
-            setAlt("");
-            setPreview(null);
-            if (inputRef.current) inputRef.current.value = "";
+          const firstError = results.find((result) => !result.ok);
+          if (!firstError) {
+            rows.forEach((row) => {
+              if (row.previewUrl) {
+                URL.revokeObjectURL(row.previewUrl);
+              }
+            });
+            rowCounterRef.current = 1;
+            setRows([createEmptyRow("row-0")]);
             onCreated?.();
           } else {
-            setSubmitError(r.error);
+            setSubmitError(firstError.error);
           }
         }}
       >
@@ -87,72 +167,122 @@ export function HeroImageForm({ onCreated }: HeroImageFormProps) {
           </p>
         ) : null}
 
-        <div>
-          <label className="text-sm font-medium text-zinc-800" htmlFor="hero-image-url">
-            Image URL
-          </label>
-          <input
-            id="hero-image-url"
-            name="imageUrl"
-            type="url"
-            required
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            className={fieldClass}
-            placeholder="https://example.com/banner.jpg"
-            autoComplete="off"
-          />
-        </div>
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-zinc-800">Upload rows</p>
+          <div className="space-y-3">
+            {rows.map((row, index) => {
+              const fileInputId = `hero-file-${row.id}`;
+              return (
+                <div
+                  key={row.id}
+                  className="rounded-lg border border-zinc-200 bg-zinc-50/70 p-4"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-zinc-900">Row {index + 1}</h3>
+                    <button
+                      type="button"
+                      onClick={() => removeRow(row.id)}
+                      className="rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+                    >
+                      Delete row
+                    </button>
+                  </div>
 
-        <div>
-          <label className="text-sm font-medium text-zinc-800" htmlFor="hero-alt">
-            Alt text (accessibility)
-          </label>
-          <input
-            id="hero-alt"
-            name="alt"
-            type="text"
-            value={alt}
-            onChange={(e) => setAlt(e.target.value)}
-            className={fieldClass}
-            placeholder="Describe the image for screen readers"
-            maxLength={200}
-          />
-        </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label
+                        className="text-sm font-medium text-zinc-800"
+                        htmlFor={fileInputId}
+                      >
+                        Upload photo
+                      </label>
+                      <input
+                        ref={(node) => setInputRef(row.id, node)}
+                        id={fileInputId}
+                        name={`image-${row.id}`}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        onChange={(e) => onFileChange(row.id, e.target.files?.[0] ?? null)}
+                        className="sr-only"
+                      />
+                      <div className="mt-1.5 flex min-w-0 items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            inputRefs.current[row.id]?.click();
+                          }}
+                          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+                        >
+                          Choose image
+                        </button>
 
-        <div>
-          <p className="text-sm font-medium text-zinc-800">Upload file (preview only)</p>
-          <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={onDrop}
-            className="mt-1.5 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-zinc-300 bg-zinc-50/80 px-4 py-8 text-center transition-colors hover:border-zinc-400"
-          >
-            <input
-              ref={inputRef}
-              id="hero-image"
-              name="image"
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              onChange={onFileChange}
-              className="sr-only"
-            />
-            <label
-              htmlFor="hero-image"
-              className="cursor-pointer rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50"
-            >
-              Choose image
-            </label>
-            <p className="text-xs text-zinc-500">
-              or drag and drop · JPEG, PNG, WebP, GIF · not saved to server yet
-            </p>
-            {preview ? (
-              <img
-                src={preview}
-                alt=""
-                className="mt-2 max-h-40 w-auto max-w-full rounded-md border border-zinc-200 object-contain"
-              />
-            ) : null}
+                      <span
+                        className={`min-w-0 flex-1 truncate rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-normal ${
+                          row.file ? "text-zinc-800" : "text-zinc-400"
+                        }`}
+                        title={row.file ? row.file.name : "No file selected"}
+                      >
+                        {row.file ? row.file.name : "No file selected"}
+                      </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium text-zinc-800" htmlFor={`hero-link-${row.id}`}>
+                        Image URL (click-through link)
+                      </label>
+                      <input
+                        id={`hero-link-${row.id}`}
+                        name={`linkUrl-${row.id}`}
+                        type="url"
+                        value={row.linkUrl}
+                        onChange={(e) => updateRow(row.id, { linkUrl: e.target.value })}
+                        className={fieldClass}
+                        placeholder="https://example.com/deal"
+                        maxLength={500}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-3">
+                    <label className="text-sm font-medium text-zinc-800" htmlFor={`hero-alt-${row.id}`}>
+                      Alt text
+                    </label>
+                    <input
+                      id={`hero-alt-${row.id}`}
+                      name={`alt-${row.id}`}
+                      type="text"
+                      value={row.alt}
+                      onChange={(e) => updateRow(row.id, { alt: e.target.value })}
+                      className={fieldClass}
+                      placeholder="Describe the image for screen readers"
+                      maxLength={200}
+                    />
+                  </div>
+
+                  {row.previewUrl ? (
+                    <figure className="mt-3 overflow-hidden rounded-lg border border-zinc-200 bg-white">
+                      <img
+                        src={row.previewUrl}
+                        alt={`Preview ${index + 1}`}
+                        className="h-40 w-full object-cover"
+                      />
+                      <figcaption className="px-3 py-2 text-xs text-zinc-500">
+                        Preview
+                      </figcaption>
+                    </figure>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
+          <button
+            type="button"
+            onClick={addRow}
+            className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+          >
+            Add row
+          </button>
         </div>
 
         <button
@@ -160,7 +290,7 @@ export function HeroImageForm({ onCreated }: HeroImageFormProps) {
           disabled={submitting}
           className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
         >
-          {submitting ? "Saving…" : "Add hero image"}
+          {submitting ? "Saving…" : "Create hero images"}
         </button>
       </form>
     </div>

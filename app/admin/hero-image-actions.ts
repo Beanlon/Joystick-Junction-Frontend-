@@ -7,6 +7,7 @@ import { AUTH_COOKIE } from "@/lib/auth-session";
 export type HeroImageRow = {
   id: string;
   imageUrl: string;
+  linkUrl: string | null;
   alt: string | null;
   sortOrder: number;
   active: boolean;
@@ -47,34 +48,34 @@ export async function listHeroImages(): Promise<
 }
 
 export async function createHeroImage(input: {
-  imageUrl: string;
+  file: File;
   alt?: string;
+  linkUrl?: string;
 }): Promise<{ ok: true; item: HeroImageRow } | { ok: false; error: string }> {
   const backend = getBackendUrl();
   if (!backend) {
     return { ok: false, error: "BACKEND_URL is not configured." };
   }
-  const imageUrl = input.imageUrl.trim();
-  if (!imageUrl) {
-    return { ok: false, error: "Image URL is required." };
+  if (!input.file || !input.file.type.startsWith("image/")) {
+    return { ok: false, error: "A valid image file is required." };
   }
   try {
     const headers = await bearerHeaders();
+    const form = new FormData();
+    form.set("image", input.file);
+    form.set("alt", (input.alt ?? "").trim());
+    form.set("linkUrl", (input.linkUrl ?? "").trim());
     const res = await fetch(`${backend}/hero-images`, {
       method: "POST",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        imageUrl,
-        alt: (input.alt ?? "").trim() || null,
-      }),
+      headers,
+      body: form,
     });
-    const body = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      id?: string;
-    };
+    
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
     if (!res.ok) {
       return { ok: false, error: body.error ?? "Failed to create hero image." };
     }
+    
     return { ok: true, item: body as HeroImageRow };
   } catch {
     return { ok: false, error: "Could not reach the API." };

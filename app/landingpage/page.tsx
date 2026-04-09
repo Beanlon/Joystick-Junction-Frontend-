@@ -1,4 +1,4 @@
-import { LandingHeroSection } from "@/components/landing-hero-section";
+import { LandingHeroSection } from "../landingpage/components/landing-hero-section";
 
 export default function LandingPage() {
   return (
@@ -6,7 +6,7 @@ export default function LandingPage() {
       className="flex flex-1 flex-col bg-background font-sans text-gray-600"
       aria-label="Page wireframe preview"
     >
-      <div className="mx-auto flex w-full max-w-[1450px] flex-1 flex-col gap-8 px-4 py-8 text-gray-600 sm:px-6 sm:py-10">
+      <div className="mx-auto flex w-full max-w-[1450px] flex-1 flex-col gap-8 px-4 py-8 text-gray-600 sm:px-0 sm:py-10">
         <LandingHeroSection />
 
         {/* Content grid wireframe */}

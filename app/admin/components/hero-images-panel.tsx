@@ -19,6 +19,22 @@ export function HeroImagesPanel() {
     }
   }, []);
 
+  const setActiveLocal = (id: string, active: boolean) => {
+    setItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, active } : item)),
+    );
+  };
+
+  const mergeRow = (item: HeroImageRow) => {
+    setItems((prev) =>
+      prev.map((i) => (i.id === item.id ? { ...i, ...item } : i)),
+    );
+  };
+
+  const addNewItem = useCallback((item: HeroImageRow) => {
+    setItems((prev) => [...prev, item]);
+  }, []);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -34,7 +50,11 @@ export function HeroImagesPanel() {
         </p>
       ) : null}
       <HeroImageForm onCreated={load} />
-      <HeroImagesTable items={items} onUpdated={load} />
+      <HeroImagesTable
+        items={items}
+        onLocalToggle={setActiveLocal}
+        onServerConfirmed={mergeRow}
+      />
     </div>
   );
 }

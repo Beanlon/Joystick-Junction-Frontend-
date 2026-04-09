@@ -10,26 +10,37 @@ const tdClass = "border-b border-zinc-100 px-3 py-2 align-middle text-sm text-zi
 
 type HeroImagesTableProps = {
   items: HeroImageRow[];
-  onUpdated: () => void;
+  onLocalToggle: (id: string, active: boolean) => void;
+  onServerConfirmed: (item: HeroImageRow) => void;
 };
 
-export function HeroImagesTable({ items, onUpdated }: HeroImagesTableProps) {
+export function HeroImagesTable({
+  items,
+  onLocalToggle,
+  onServerConfirmed,
+}: HeroImagesTableProps) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [toggleError, setToggleError] = useState<string | null>(null);
 
   const onToggle = useCallback(
-    async (id: string, nextActive: boolean) => {
+    async (id: string, currentActive: boolean, nextActive: boolean) => {
       setToggleError(null);
       setPendingId(id);
+
+      onLocalToggle(id, nextActive);
+
       const r = await setHeroImageActive(id, nextActive);
       setPendingId(null);
-      if (r.ok) {
-        onUpdated();
-      } else {
+
+      if (!r.ok) {
+        onLocalToggle(id, currentActive);
         setToggleError(r.error);
+        return;
       }
+
+      onServerConfirmed(r.item);
     },
-    [onUpdated],
+    [onLocalToggle, onServerConfirmed],
   );
 
   return (
@@ -57,8 +68,9 @@ export function HeroImagesTable({ items, onUpdated }: HeroImagesTableProps) {
             <tr>
               <th className={thClass}>Preview</th>
               <th className={thClass}>Image URL</th>
+              <th className={thClass}>Link URL</th>
               <th className={thClass}>Alt</th>
-              <th className={thClass}>Order</th>
+              <th className={thClass}>Added at</th>
               <th className={thClass}>Active</th>
             </tr>
           </thead>
@@ -66,10 +78,10 @@ export function HeroImagesTable({ items, onUpdated }: HeroImagesTableProps) {
             {items.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   className="px-3 py-8 text-center text-sm text-zinc-500"
                 >
-                  No hero images yet. Add one above using an image URL.
+                  No hero images yet. Add one above using file upload rows.
                 </td>
               </tr>
             ) : (
@@ -88,12 +100,33 @@ export function HeroImagesTable({ items, onUpdated }: HeroImagesTableProps) {
                       {row.imageUrl}
                     </span>
                   </td>
+                  <td className={`${tdClass} max-w-[200px]`}>
+                    {row.linkUrl ? (
+                      <a
+                        href={row.linkUrl}
+                        className="line-clamp-2 break-all text-blue-700 underline"
+                        title={row.linkUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {row.linkUrl}
+                      </a>
+                    ) : (
+                      <span className="text-zinc-500">-</span>
+                    )}
+                  </td>
                   <td className={`${tdClass} max-w-[140px]`}>
                     <span className="line-clamp-2 text-zinc-600" title={row.alt ?? ""}>
                       {row.alt ?? "—"}
                     </span>
                   </td>
-                  <td className={tdClass}>{row.sortOrder}</td>
+                  <td className={tdClass}>
+                    {new Date(row.createdAt).toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </td>
                   <td className={tdClass}>
                     <label className="inline-flex cursor-pointer items-center gap-2">
                       <span className="sr-only">
@@ -105,7 +138,7 @@ export function HeroImagesTable({ items, onUpdated }: HeroImagesTableProps) {
                         checked={row.active}
                         disabled={pendingId === row.id}
                         onChange={(e) => {
-                          void onToggle(row.id, e.target.checked);
+                          void onToggle(row.id, row.active, e.target.checked);
                         }}
                       />
                       <span

@@ -33,6 +33,31 @@ body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+.hero-slide {
+  opacity: 0;
+  animation-name: heroFadeCycle;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes heroFadeCycle {
+  0% {
+    opacity: 0;
+  }
+  4% {
+    opacity: 1;
+  }
+  22% {
+    opacity: 1;
+  }
+  28% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* ByteRush wordmark (inline SVG) — matches ByteRush_logo.html light variant */
 .byterush-wordmark {
   overflow: visible;
