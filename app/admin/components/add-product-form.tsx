@@ -1,5 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { CategoryDropdown, type CategoryOption } from "@/app/admin/components/category-dropdown";
+import { ItemTypeDropdown, type ItemTypeOption } from "./itemtype-dropdown";
+
 const fieldClass =
   "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500";
 const labelClass =
@@ -36,7 +40,132 @@ function CameraIcon({ className }: { className?: string }) {
   );
 }
 
+function apiBase(): string | null {
+  const raw = process.env.NEXT_PUBLIC_BACKEND_URL?.trim();
+  if (!raw) return null;
+  return raw.replace(/\/$/, "");
+}
+
 export function AddProductForm() {
+  const [categories, setCategories] = useState<CategoryOption[] | undefined>(undefined);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+
+  const [categoryId, setCategoryId] = useState("");
+  const [itemTypeId, setItemTypeId] = useState("");
+  const [itemTypes, setItemTypes] = useState<ItemTypeOption[]>([]);
+  const [itemTypesError, setItemTypesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const base = apiBase();
+      if (!base) {
+        if (!cancelled) {
+          setCategoriesError("Set NEXT_PUBLIC_BACKEND_URL in .env.local to load categories.");
+          setCategories([]);
+        }
+        return;
+      }
+      try {
+        const res = await fetch(`${base}/categories`);
+        if (!res.ok) {
+          if (!cancelled) {
+            setCategoriesError(`Could not load categories (${res.status}).`);
+            setCategories([]);
+          }
+          return;
+        }
+        const data = (await res.json()) as unknown;
+        if (!Array.isArray(data)) {
+          if (!cancelled) {
+            setCategoriesError("Invalid categories response.");
+            setCategories([]);
+          }
+          return;
+        }
+        const rows: CategoryOption[] = [];
+        for (const raw of data) {
+          if (!raw || typeof raw !== "object") continue;
+          const o = raw as Record<string, unknown>;
+          const id = typeof o.id === "string" ? o.id : "";
+          const name = typeof o.name === "string" ? o.name : "";
+          const slug = typeof o.slug === "string" ? o.slug : "";
+          if (id && name && slug) rows.push({ id, name, slug });
+        }
+        if (!cancelled) {
+          setCategories(rows);
+          setCategoriesError(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setCategoriesError("Could not reach the API.");
+          setCategories([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!categoryId.trim()) {
+      setItemTypes([]);
+      setItemTypeId("");
+      setItemTypesError(null);
+      return;
+    }
+    (async () => {
+      const base = apiBase();
+      if (!base) {
+        setItemTypes([]);
+        return;
+      }
+      setItemTypesError(null);
+      try {
+        const q = new URLSearchParams({ categoryId: categoryId.trim() });
+        const res = await fetch(`${base}/item-types?${q.toString()}`);
+        if (!res.ok) {
+          if (!cancelled) {
+            setItemTypesError(`Could not load item types (${res.status}).`);
+            setItemTypes([]);
+          }
+          return;
+        }
+        const data = (await res.json()) as unknown;
+        if (!Array.isArray(data)) {
+          if (!cancelled) {
+            setItemTypesError("Invalid item types response.");
+            setItemTypes([]);
+          }
+          return;
+        }
+        const rows: ItemTypeOption[] = [];
+        for (const raw of data) {
+          if (!raw || typeof raw !== "object") continue;
+          const o = raw as Record<string, unknown>;
+          const id = typeof o.id === "string" ? o.id : "";
+          const name = typeof o.name === "string" ? o.name : "";
+          const slug = typeof o.slug === "string" ? o.slug : "";
+          if (id && name && slug) rows.push({ id, name, slug });
+        }
+        if (!cancelled) {
+          setItemTypes(rows);
+          setItemTypeId("");
+        }
+      } catch {
+        if (!cancelled) {
+          setItemTypesError("Could not reach the API.");
+          setItemTypes([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [categoryId]);
+
   return (
     <form
       className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6"
@@ -57,6 +186,20 @@ export function AddProductForm() {
           Basic info
         </h2>
         <SectionTitle>Basic info</SectionTitle>
+
+        {categories === undefined ? (
+          <p className="mb-4 text-sm text-zinc-500">Loading categories…</p>
+        ) : null}
+        {categoriesError ? (
+          <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">
+            {categoriesError}
+          </p>
+        ) : null}
+        {itemTypesError && categoryId ? (
+          <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">
+            {itemTypesError}
+          </p>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
           <div>
@@ -85,25 +228,28 @@ export function AddProductForm() {
               autoComplete="off"
             />
           </div>
-          <div>
-            <label className={labelClass} htmlFor="product-category">
-              Category
-            </label>
-            <select
+          {categories !== undefined ? (
+            <CategoryDropdown
               id="product-category"
-              name="category"
-              className={fieldClass}
-              defaultValue=""
-            >
-              <option value="" disabled>
-                — Select category —
-              </option>
-              <option value="components">Components</option>
-              <option value="peripherals">Peripherals</option>
-              <option value="laptops">Laptops</option>
-              <option value="accessories">Accessories</option>
-            </select>
-          </div>
+              name="categoryId"
+              categories={categories}
+              value={categoryId}
+              onValueChange={(id) => {
+                setCategoryId(id);
+                setItemTypeId("");
+              }}
+            />
+          ) : null}
+          {categories !== undefined ? (
+            <ItemTypeDropdown
+              id="product-item-type"
+              name="itemTypeId"
+              itemTypes={itemTypes}
+              value={itemTypeId}
+              onValueChange={setItemTypeId}
+              disabled={!categoryId.trim()}
+            />
+          ) : null}
           <div>
             <label className={labelClass} htmlFor="product-brand">
               Brand
