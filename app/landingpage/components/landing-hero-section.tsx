@@ -14,13 +14,17 @@ async function getHeroImages(): Promise<HeroImageRow[]> {
   const backend = getBackendUrl();
   if (!backend) return [];
 
-  const res = await fetch(`${backend}/hero-images`, {
-    next: { revalidate: 0 },
-  });
+  try {
+    const res = await fetch(`${backend}/hero-images`, {
+      next: { revalidate: 0 },
+    });
 
-  if (!res.ok) return [];
-  const rows = (await res.json()) as HeroImageRow[];
-  return rows.filter((r) => r.active);
+    if (!res.ok) return [];
+    const rows = (await res.json()) as HeroImageRow[];
+    return rows.filter((r) => r.active);
+  } catch {
+    return [];
+  }
 }
 
 export async function LandingHeroSection() {
