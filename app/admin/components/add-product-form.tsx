@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CategoryDropdown, type CategoryOption } from "@/app/admin/components/category-dropdown";
 import { ItemTypeDropdown, type ItemTypeOption } from "./itemtype-dropdown";
+import { BrandDropdown, type BrandOption } from "./brand-dropdown";
+import { createItemType, deleteItemType } from "@/app/admin/item-type-actions";
+import { RichTextEditor } from "./TextEditor";
 
 const fieldClass =
   "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500";
@@ -46,14 +49,68 @@ function apiBase(): string | null {
   return raw.replace(/\/$/, "");
 }
 
+
+
 export function AddProductForm() {
+  const [categoryId, setCategoryId] = useState("");
   const [categories, setCategories] = useState<CategoryOption[] | undefined>(undefined);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
-  const [categoryId, setCategoryId] = useState("");
+
   const [itemTypeId, setItemTypeId] = useState("");
   const [itemTypes, setItemTypes] = useState<ItemTypeOption[]>([]);
+  const [itemTypesLoading, setItemTypesLoading] = useState(false);
   const [itemTypesError, setItemTypesError] = useState<string | null>(null);
+  
+  const [brandId, setBrandId] = useState("");
+  const [brands, setBrands] = useState<BrandOption[] | undefined>(undefined);
+  const [brandsError, setBrandsError] = useState<string | null>(null);
+
+  const [fullDescription, setFullDescription] = useState("<p></p>");
+
+
+  const handleCreateItemType = useCallback(
+    async (name: string) => {
+      const catId = categoryId.trim();
+      if (!catId) {
+        return { ok: false as const, error: "Select a category first." };
+      }
+
+      const r = await createItemType({ categoryId: catId, name });
+      if (!r.ok) {
+        return r;
+      }
+
+      const added: ItemTypeOption = {
+        id: r.item.id,
+        slug: r.item.slug,
+        name: r.item.name,
+      };
+
+      setItemTypes((prev) => {
+        if (prev.some((p) => p.id === added.id)) return prev;
+        return [...prev, added].sort((a, b) => a.name.localeCompare(b.name));
+      });
+      setItemTypeId(added.id);
+
+      return { ok: true as const, item: added };
+    },
+    [categoryId],
+  );
+
+  const handleDeleteItemType = useCallback(
+    async (id: string) => {
+      const r = await deleteItemType(id);
+      if (!r.ok) {
+        return r;
+      }
+
+      setItemTypes((prev) => prev.filter((t) => t.id !== id));
+      setItemTypeId((prev) => (prev === id ? "" : prev));
+      return { ok: true as const };
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -113,15 +170,18 @@ export function AddProductForm() {
     if (!categoryId.trim()) {
       setItemTypes([]);
       setItemTypeId("");
+      setItemTypesLoading(false);
       setItemTypesError(null);
       return;
     }
     (async () => {
       const base = apiBase();
       if (!base) {
+        setItemTypesLoading(false);
         setItemTypes([]);
         return;
       }
+      setItemTypesLoading(true);
       setItemTypesError(null);
       try {
         const q = new URLSearchParams({ categoryId: categoryId.trim() });
@@ -130,6 +190,7 @@ export function AddProductForm() {
           if (!cancelled) {
             setItemTypesError(`Could not load item types (${res.status}).`);
             setItemTypes([]);
+            setItemTypesLoading(false);
           }
           return;
         }
@@ -138,6 +199,7 @@ export function AddProductForm() {
           if (!cancelled) {
             setItemTypesError("Invalid item types response.");
             setItemTypes([]);
+            setItemTypesLoading(false);
           }
           return;
         }
@@ -153,11 +215,13 @@ export function AddProductForm() {
         if (!cancelled) {
           setItemTypes(rows);
           setItemTypeId("");
+          setItemTypesLoading(false);
         }
       } catch {
         if (!cancelled) {
           setItemTypesError("Could not reach the API.");
           setItemTypes([]);
+          setItemTypesLoading(false);
         }
       }
     })();
@@ -165,6 +229,61 @@ export function AddProductForm() {
       cancelled = true;
     };
   }, [categoryId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const base = apiBase();
+      if (!base) {
+        if (!cancelled) {
+          setBrandsError("Set NEXT_PUBLIC_BACKEND_URL in .env.local to load brands.");
+          setBrands([]);
+        }
+        return;
+      }
+      setBrandsError(null);
+      try {
+        const res = await fetch(`${base}/brands`);
+        if (!res.ok) {
+          if (!cancelled) {
+            setBrandsError(`Could not load brands (${res.status}).`);
+            setBrands([]);
+          }
+          return;
+        }
+        const data = (await res.json()) as unknown;
+        if (!Array.isArray(data)) {
+          if (!cancelled) {
+            setBrandsError("Invalid brands response.");
+            setBrands([]);
+          }
+          return;
+        }
+        const rows: BrandOption[] = [];
+        for (const raw of data) {
+          if (!raw || typeof raw !== "object") continue;
+          const o = raw as Record<string, unknown>;
+          const id = typeof o.id === "string" ? o.id : "";
+          const name = typeof o.name === "string" ? o.name : "";
+          const slug = typeof o.slug === "string" ? o.slug : "";
+          if (id && name && slug) rows.push({ id, name, slug });
+        }
+        if (!cancelled) {
+          setBrands(rows);
+          setBrandsError(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setBrandsError("Could not reach the API.");
+          setBrands([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
 
   return (
     <form
@@ -187,9 +306,6 @@ export function AddProductForm() {
         </h2>
         <SectionTitle>Basic info</SectionTitle>
 
-        {categories === undefined ? (
-          <p className="mb-4 text-sm text-zinc-500">Loading categories…</p>
-        ) : null}
         {categoriesError ? (
           <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">
             {categoriesError}
@@ -198,6 +314,11 @@ export function AddProductForm() {
         {itemTypesError && categoryId ? (
           <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">
             {itemTypesError}
+          </p>
+        ) : null}
+        {brandsError ? (
+          <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">
+            {brandsError}
           </p>
         ) : null}
 
@@ -228,71 +349,44 @@ export function AddProductForm() {
               autoComplete="off"
             />
           </div>
-          {categories !== undefined ? (
-            <CategoryDropdown
-              id="product-category"
-              name="categoryId"
-              categories={categories}
-              value={categoryId}
-              onValueChange={(id) => {
-                setCategoryId(id);
-                setItemTypeId("");
-              }}
-            />
-          ) : null}
-          {categories !== undefined ? (
-            <ItemTypeDropdown
-              id="product-item-type"
-              name="itemTypeId"
-              itemTypes={itemTypes}
-              value={itemTypeId}
-              onValueChange={setItemTypeId}
-              disabled={!categoryId.trim()}
-            />
-          ) : null}
-          <div>
-            <label className={labelClass} htmlFor="product-brand">
-              Brand
-            </label>
-            <select
-              id="product-brand"
-              name="brand"
-              className={fieldClass}
-              defaultValue=""
-            >
-              <option value="" disabled>
-                — Select brand —
-              </option>
-              <option value="placeholder-a">Brand A</option>
-              <option value="placeholder-b">Brand B</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="mt-4 md:mt-6">
-          <label className={labelClass} htmlFor="short-description">
-            Short description
-          </label>
-          <textarea
-            id="short-description"
-            name="shortDescription"
-            rows={3}
-            className={`${fieldClass} resize-y min-h-[4.5rem]`}
-            placeholder="Brief product overview (shown in search results and cards)…"
+          <CategoryDropdown
+            id="product-category"
+            name="categoryId"
+            categories={categories ?? []}
+            loading={categories === undefined}
+            value={categoryId}
+            onValueChange={(id) => {
+              setCategoryId(id);
+              setItemTypeId("");
+            }}
+          />
+          <ItemTypeDropdown
+            id="product-item-type"
+            name="itemTypeId"
+            itemTypes={itemTypes}
+            loading={categories === undefined || itemTypesLoading}
+            value={itemTypeId}
+            onValueChange={setItemTypeId}
+            onCreateType={handleCreateItemType}
+            onDeleteType={handleDeleteItemType}
+            canManageTypes={Boolean(categoryId.trim())}
+            disabled={!categoryId.trim()}
+          />
+          <BrandDropdown
+            id="product-brand"
+            name="brandId"
+            brands={brands ?? []}
+            loading={brands === undefined}
+            value={brandId}
+            placeholder="Brand required"
+            onValueChange={setBrandId}
+            required
           />
         </div>
 
         <div className="mt-4 md:mt-6">
-          <label className={labelClass} htmlFor="full-description">
-            Full description
-          </label>
-          <textarea
-            id="full-description"
-            name="fullDescription"
-            rows={8}
-            className={`${fieldClass} resize-y min-h-[12rem]`}
-            placeholder="Detailed product description with features, specs overview, and highlights…"
-          />
+          <RichTextEditor value={fullDescription} onChange={setFullDescription} />
+          <input type="hidden" name="fullDescription" value={fullDescription} />
         </div>
       </section>
 

@@ -7,9 +7,30 @@ const fieldClass =
 const labelClass =
   "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-zinc-600";
 
+
+function apiBase(): string | null {
+  const raw = process.env.NEXT_PUBLIC_BACKEND_URL?.trim();
+  if (!raw) return null;
+  return raw.replace(/\/+$/, ""); // Remove trailing slashes
+}
+
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+
 export function BrandForm() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
   const syncFileToPreview = useCallback((file: File | undefined) => {
     if (!file || !file.type.startsWith("image/")) {
@@ -33,6 +54,64 @@ export function BrandForm() {
     syncFileToPreview(file);
   };
 
+const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+
+  setSubmitError(null);
+  setSubmitSuccess(null);
+
+  const formEl = e.currentTarget;
+  const formData = new FormData(formEl);
+  const nameRaw = formData.get("name");
+  const name = typeof nameRaw === "string" ? nameRaw.trim() : "";
+
+  if (!name) {
+    setSubmitError("Brand name is required.");
+    return;
+  }
+
+  const slug = slugify(name);
+  if (!slug) {
+    setSubmitError("Could not generate a valid slug from this name.");
+    return;
+  }
+
+  const base = apiBase();
+  if (!base) {
+    setSubmitError("Set NEXT_PUBLIC_BACKEND_URL in .env.local.");
+    return;
+  }
+
+  try {
+    setIsSubmitting(true);
+
+    const response = await fetch(`${base}/brands`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, slug }),
+    });
+
+    if (!response.ok) {
+      let message = `Failed to create brand (${response.status}).`;
+      try {
+        const data = (await response.json()) as { error?: string };
+        if (data?.error) message = data.error;
+      } catch {}
+      setSubmitError(message);
+      return;
+    }
+
+    formEl.reset();
+    if (inputRef.current) inputRef.current.value = "";
+    setPreview(null);
+    setSubmitSuccess("Brand added successfully.");
+  } catch {
+    setSubmitError("Network error while creating brand.");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
   useEffect(() => {
     return () => {
       if (preview) URL.revokeObjectURL(preview);
@@ -42,7 +121,7 @@ export function BrandForm() {
   return (
     <form
       className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-6"
-      onSubmit={(e) => e.preventDefault()}
+      onSubmit={handleSubmit}
     >
       <section aria-labelledby="brand-form-heading">
         <div className="mb-5">
@@ -71,7 +150,7 @@ export function BrandForm() {
           />
         </div>
 
-        <div>
+        <div className="mb-5">
           <p className={labelClass}>Brand logo</p>
           <div
             onDragOver={(e) => e.preventDefault()}
@@ -106,40 +185,22 @@ export function BrandForm() {
           </div>
         </div>
 
-        <div className="relative my-6">
-          <div
-            className="absolute inset-x-0 top-1/2 border-t border-zinc-200"
-            aria-hidden
-          />
-          <span className="relative mx-auto block w-fit bg-white px-2 text-xs text-zinc-500">
-            or
-          </span>
-        </div>
-
-        <div className="mb-6">
-          <label className={labelClass} htmlFor="brand-logo-url">
-            Logo URL
-          </label>
-          <input
-            id="brand-logo-url"
-            name="logoUrl"
-            type="url"
-            className={fieldClass}
-            placeholder="https://example.com/logo.png"
-          />
-        </div>
 
         <button
           type="submit"
+          disabled={isSubmitting}
           className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
         >
-          Add brand
+          {isSubmitting ? "Adding..." : "Add brand"}
         </button>
 
-        <p className="mt-4 text-xs text-zinc-500">
-          Saving to your backend is not wired yet — this form is UI only for
-          now.
-        </p>
+        {submitError ? (
+          <p className="mt-4 text-xs text-red-600">{submitError}</p>
+        ) : null}
+
+        {submitSuccess ? (
+          <p className="mt-4 text-xs text-emerald-700">{submitSuccess}</p>
+        ) : null}
       </section>
     </form>
   );

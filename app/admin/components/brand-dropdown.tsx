@@ -5,34 +5,33 @@ import { useEffect, useId, useRef, useState } from "react";
 const labelClass =
   "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-zinc-600";
 
-export type CategoryOption = {
+export type BrandOption = {
   id: string;
   slug: string;
   name: string;
 };
 
-export type CategoryDropdownProps = {
+export type BrandDropdownProps = {
   id: string;
   name?: string;
   label?: string;
   placeholder?: string;
-  /** From your API (`GET /categories`); the backend reads the DB using DATABASE_URL — never expose DATABASE_URL in the browser. */
-  categories: CategoryOption[];
+  brands?: BrandOption[];
   value?: string;
   defaultValue?: string;
-  onValueChange?: (categoryId: string) => void;
+  onValueChange?: (brandId: string) => void;
   loading?: boolean;
   disabled?: boolean;
   required?: boolean;
   className?: string;
 };
 
-export function CategoryDropdown({
+export function BrandDropdown({
   id,
-  name = "categoryId",
-  label = "Category",
-  placeholder = "Select category",
-  categories,
+  name = "brandId",
+  label = "Brand",
+  placeholder = "Select brand",
+  brands = [],
   value: valueProp,
   defaultValue = "",
   onValueChange,
@@ -40,8 +39,8 @@ export function CategoryDropdown({
   disabled,
   required,
   className = "",
-}: CategoryDropdownProps) {
-  const options = categories;
+}: BrandDropdownProps) {
+  const options = brands;
   const controlled = valueProp !== undefined;
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -50,11 +49,11 @@ export function CategoryDropdown({
   const [internal, setInternal] = useState(defaultValue);
   const selectedId = controlled ? (valueProp ?? "") : internal;
 
-  const selected = options.find((c) => c.id === selectedId);
+  const selected = options.find((b) => b.id === selectedId);
   const display = loading
-    ? "Loading categories..."
+    ? "Loading brands..."
     : options.length === 0
-      ? "No categories available"
+      ? "No brands available"
       : (selected?.name ?? placeholder);
 
   useEffect(() => {
@@ -66,9 +65,9 @@ export function CategoryDropdown({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  function pick(id: string) {
-    if (!controlled) setInternal(id);
-    onValueChange?.(id);
+  function pick(next: string) {
+    if (!controlled) setInternal(next);
+    onValueChange?.(next);
     setOpen(false);
   }
 
@@ -80,7 +79,6 @@ export function CategoryDropdown({
         {label}
       </label>
 
-      {/* Form submit value */}
       <input type="hidden" name={name} value={selectedId} />
 
       <button
@@ -104,7 +102,7 @@ export function CategoryDropdown({
 
       {loading ? (
         <span className="sr-only" aria-live="polite">
-          Loading categories
+          Loading brands
         </span>
       ) : null}
 
@@ -125,28 +123,27 @@ export function CategoryDropdown({
               {placeholder}
             </button>
           </li>
-          {options.map((c) => (
-            <li key={c.id} role="presentation">
+          {options.map((b) => (
+            <li key={b.id} role="presentation">
               <button
                 type="button"
                 role="option"
-                aria-selected={selectedId === c.id}
+                aria-selected={selectedId === b.id}
                 className={`w-full px-3 py-2 text-left text-sm hover:bg-zinc-50 ${
-                  selectedId === c.id ? "bg-zinc-100 font-medium text-zinc-900" : "text-zinc-800"
+                  selectedId === b.id ? "bg-zinc-100 font-medium text-zinc-900" : "text-zinc-800"
                 }`}
-                onClick={() => pick(c.id)}
+                onClick={() => pick(b.id)}
               >
-                {c.name}
+                {b.name}
               </button>
             </li>
           ))}
         </ul>
       )}
 
-      {/* Browser hint for required — hidden field can be empty; validate on submit or use JS */}
       {required && !selectedId ? (
         <span className="sr-only" aria-live="polite">
-          Category is required
+          Brand is required
         </span>
       ) : null}
     </div>
