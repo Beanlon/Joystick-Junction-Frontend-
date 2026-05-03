@@ -123,6 +123,7 @@ export function RichTextEditor({ value, onChange }: Props) {
       : "normal";
 
   function setTextSize(next: "normal" | "medium" | "large") {
+    if (!editor) return;
     const chain = editor.chain().focus();
     if (next === "large") {
       chain.setHeading({ level: 2 }).run();
